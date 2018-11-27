@@ -13,9 +13,7 @@ describe('mock hsm keys', () => {
     })
 
     it('lists all keys on the core', () => {
-      browser.getText('.ItemList').should.contain('ALIAS')
-      browser.getText('.ItemList').should.contain('XPUB')
-      browser.getText('.ItemList').should.contain('testkey')
+      browser.elements('.ListItem').value.length.should.be.above(0)
     })
 
     it('displays the correct page title', () => {
@@ -31,8 +29,11 @@ describe('mock hsm keys', () => {
 
     it('can create a new key', () => {
       const alias = 'test-key-' + uuid.v4()
+      browser.waitForVisible('.ItemList button')
+      browser.scroll('.ItemList button')
       browser.click('.ItemList button')
       browser.setValue('input[name=alias]', alias)
+      browser.scroll('.FormContainer button')
       browser.click('.FormContainer button')
       browser.waitForVisible('.ItemList')
       browser.getText('.ItemList').should.contain('Created key. Create another?')

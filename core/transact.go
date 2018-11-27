@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"chain/core/fetch"
 	"chain/core/leader"
 	"chain/core/txbuilder"
 	"chain/database/pg"
@@ -19,7 +18,7 @@ import (
 	"chain/protocol/bc/legacy"
 )
 
-var defaultTxTTL = 5 * time.Minute
+const defaultTxTTL = 5 * time.Minute
 
 func (a *API) actionDecoder(action string) (func([]byte) (txbuilder.Action, error), bool) {
 	var decoder func([]byte) (txbuilder.Action, error)
@@ -214,7 +213,10 @@ func cleanUpSubmittedTxs(ctx context.Context, db pg.DB) {
 func (a *API) finalizeTxWait(ctx context.Context, txTemplate *txbuilder.Template, waitUntil string) error {
 	// Use the current generator height as the lower bound of the block height
 	// that the transaction may appear in.
-	generatorHeight, _ := fetch.GeneratorHeight()
+	var generatorHeight uint64
+	if a.replicator != nil {
+		generatorHeight, _ = a.replicator.PeerHeight()
+	}
 	localHeight := a.chain.Height()
 	if localHeight > generatorHeight {
 		generatorHeight = localHeight

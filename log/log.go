@@ -17,8 +17,6 @@ import (
 	"chain/errors"
 )
 
-const rfc3339NanoFixed = "2006-01-02T15:04:05.000000000Z07:00"
-
 // context key type
 type key int
 
@@ -26,6 +24,13 @@ var (
 	logWriterMu sync.Mutex // protects the following
 	logWriter   io.Writer  = os.Stdout
 	procPrefix  []byte     // process-global prefix; see SetPrefix vs AddPrefixkv
+
+	// context key for log line prefixes
+	prefixKey key = 0
+)
+
+const (
+	rfc3339NanoFixed = "2006-01-02T15:04:05.000000000Z07:00"
 
 	// pairDelims contains a list of characters that may be used as delimeters
 	// between key-value pairs in a log entry. Keys and values will be quoted or
@@ -35,9 +40,6 @@ var (
 	// http://answers.splunk.com/answers/143368/default-delimiters-for-key-value-extraction.html
 	pairDelims      = " ,;|&\t\n\r"
 	illegalKeyChars = pairDelims + `="`
-
-	// context key for log line prefixes
-	prefixKey key = 0
 )
 
 // Conventional key names for log entries
@@ -113,7 +115,7 @@ func prefix(ctx context.Context) []byte {
 // Printkv will also print the stack trace, if any, on separate lines
 // following the message. The stack is obtained from the following,
 // in order of preference:
-//   - a KeyStack value with type []byte or []errors.StackFrame
+//   - a KeyStack value with type []byte or *runtime.Frames
 //   - a KeyError value with type error, using the result of errors.Stack
 func Printkv(ctx context.Context, keyvals ...interface{}) {
 	// Invariant: len(keyvals) is always even.
@@ -168,10 +170,9 @@ func writeRawStack(w io.Writer, v interface{}) {
 			w.Write(v)
 			w.Write([]byte{'\n'})
 		}
-	case []errors.StackFrame:
-		for _, s := range v {
-			io.WriteString(w, s.String())
-			w.Write([]byte{'\n'})
+	case *runtime.Frames:
+		for f, ok := v.Next(); ok; f, ok = v.Next() {
+			fmt.Fprintf(w, "%s:%d: %s\n", f.File, f.Line, f.Function)
 		}
 	}
 }
@@ -180,7 +181,7 @@ func isStackVal(v interface{}) bool {
 	switch v.(type) {
 	case []byte:
 		return true
-	case []errors.StackFrame:
+	case *runtime.Frames:
 		return true
 	}
 	return false
@@ -197,7 +198,7 @@ func Printf(ctx context.Context, format string, a ...interface{}) {
 // Optionally, an error message prefix can be included. Prefix arguments are
 // handled as in fmt.Print.
 func Error(ctx context.Context, err error, a ...interface{}) {
-	if len(a) > 0 && len(errors.Stack(err)) > 0 {
+	if _, hasStack := errors.Stack(err).Next(); len(a) > 0 && hasStack {
 		err = errors.Wrap(err, a...) // keep err's stack
 	} else if len(a) > 0 {
 		err = fmt.Errorf("%s: %s", fmt.Sprint(a...), err) // don't add a stack here

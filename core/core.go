@@ -11,7 +11,6 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"chain/core/config"
-	"chain/core/fetch"
 	"chain/core/leader"
 	"chain/database/sinkdb"
 	"chain/errors"
@@ -82,7 +81,7 @@ func (a *API) leaderInfo(ctx context.Context) (map[string]interface{}, error) {
 		generatorHeight = localHeight
 		generatorFetched = now
 	} else {
-		fetchHeight, fetchTime := fetch.GeneratorHeight()
+		fetchHeight, fetchTime := a.replicator.PeerHeight()
 		// Because everything is asynchronous, it's possible for the localHeight to
 		// be higher than our cached generator height. In that case, display the
 		// local height as the generator height.
@@ -177,6 +176,8 @@ func (a *API) configure(ctx context.Context, req configureRequest) error {
 			ops = append(ops, a.options.AddOrUpdate(update.Key, update.Tuple))
 		case "rm":
 			ops = append(ops, a.options.Remove(update.Key, update.Tuple))
+		case "set":
+			ops = append(ops, a.options.Set(update.Key, update.Tuple))
 		default:
 			return errors.WithDetailf(config.ErrConfigOp, "Unknown config operation %q.", update.Op)
 		}
